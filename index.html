@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Location Map</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        line-height: 1.4;
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+
+      #map {
+        width: 100%;
+        min-height: 420px;
+        border: 1px solid #c9c9c9;
+        border-radius: 8px;
+      }
+
+      .notice {
+        margin-bottom: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        background: #f1f5ff;
+        color: #111;
+      }
+
+      #status {
+        margin-top: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>OpenStreetMap + Your Location</h1>
+      <p class="notice">
+        This page asks for your browser's location permission. Geolocation typically works best over
+        <strong>HTTPS</strong> (or <strong>localhost</strong> in local development).
+      </p>
+
+      <div id="map" role="region" aria-label="Map"></div>
+      <p id="status" aria-live="polite">Requesting your location…</p>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>
+      const statusEl = document.getElementById('status');
+      const map = L.map('map').setView([20, 0], 2);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      let currentLocationMarker;
+
+      function setStatus(message) {
+        statusEl.textContent = message;
+      }
+
+      function showLocation(latitude, longitude, accuracy) {
+        map.setView([latitude, longitude], 14);
+
+        if (currentLocationMarker) {
+          currentLocationMarker.remove();
+        }
+
+        currentLocationMarker = L.marker([latitude, longitude])
+          .addTo(map)
+          .bindPopup(`You are here (accuracy: ±${Math.round(accuracy)}m).`)
+          .openPopup();
+
+        setStatus('Location found. The marker shows your current position.');
+      }
+
+      function handleLocationError(error) {
+        if (error.code === error.PERMISSION_DENIED) {
+          setStatus('Location access was denied. You can still use and explore the map manually.');
+          return;
+        }
+
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          setStatus('Your location is currently unavailable. You can still use and explore the map manually.');
+          return;
+        }
+
+        if (error.code === error.TIMEOUT) {
+          setStatus('Location request timed out. You can still use and explore the map manually.');
+          return;
+        }
+
+        setStatus('Could not get your location. You can still use and explore the map manually.');
+      }
+
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude, accuracy } = position.coords;
+            showLocation(latitude, longitude, accuracy);
+          },
+          (error) => {
+            handleLocationError(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
+      } else {
+        setStatus('Geolocation is not supported by your browser. You can still use and explore the map manually.');
+      }
+    </script>
+  </body>
+</html>
