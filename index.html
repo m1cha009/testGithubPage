@@ -43,21 +43,7 @@
       }
 
       .controls,
-      .save-controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        margin-top: 0.75rem;
-      }
 
-      .save-controls input {
-        flex: 1 1 220px;
-        min-width: 0;
-        padding: 0.5rem 0.75rem;
-        font-size: 1rem;
-        border: 1px solid #9ca3af;
-        border-radius: 6px;
-      }
 
       #status {
         margin-top: 0.75rem;
@@ -87,9 +73,37 @@
       }
 
       #recenterBtn,
-      #saveTrailBtn,
-      .saved-trails button {
+      .saved-trails button.load-btn {
         background: #3b82f6;
+      }
+
+      .saved-trails button.rename-btn {
+        background: #7c3aed;
+      }
+
+      .trail-rename-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        flex: 1 1 100%;
+        align-items: center;
+      }
+
+      .trail-rename-form input {
+        flex: 1 1 180px;
+        min-width: 0;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.95rem;
+        border: 1px solid #9ca3af;
+        border-radius: 6px;
+      }
+
+      .trail-rename-form button {
+        background: #16a34a;
+      }
+
+      .trail-rename-form button.cancel-btn {
+        background: #6b7280;
       }
 
       .saved-trails {
@@ -146,18 +160,6 @@
         <button id="stopTrackingBtn" disabled aria-label="Stop recording your movement trail">Stop tracking</button>
         <button id="recenterBtn" disabled aria-label="Recenter map to latest location">Recenter map</button>
       </div>
-      <div class="save-controls">
-        <input
-          id="trailNameInput"
-          type="text"
-          maxlength="80"
-          placeholder="Trail name (optional)"
-          aria-label="Trail name"
-        />
-        <button id="saveTrailBtn" disabled aria-label="Save the current trail to this browser">
-          Save current trail
-        </button>
-      </div>
       <section class="saved-trails" aria-labelledby="savedTrailsHeading">
         <h2 id="savedTrailsHeading">Saved trails</h2>
         <p id="savedTrailsEmpty" class="helper-text">No saved trails yet on this browser.</p>
@@ -177,8 +179,6 @@
       const startTrackingBtn = document.getElementById('startTrackingBtn');
       const stopTrackingBtn = document.getElementById('stopTrackingBtn');
       const recenterBtn = document.getElementById('recenterBtn');
-      const saveTrailBtn = document.getElementById('saveTrailBtn');
-      const trailNameInput = document.getElementById('trailNameInput');
       const savedTrailsList = document.getElementById('savedTrailsList');
       const savedTrailsEmpty = document.getElementById('savedTrailsEmpty');
       const map = L.map('map').setView([20, 0], 2);
@@ -202,7 +202,6 @@
       }).addTo(map);
       let lastPosition = null;
       let currentTrail = [];
-      let currentTrailSaved = false;
       let watchId = null;
       let loadedTrailId = null;
 
@@ -235,7 +234,6 @@
         startTrackingBtn.disabled = isTracking || !geolocationSupported;
         stopTrackingBtn.disabled = !isTracking;
         recenterBtn.disabled = !lastPosition;
-        saveTrailBtn.disabled = currentTrail.length === 0 || isTracking || currentTrailSaved;
       }
 
       function showLocation(latitude, longitude, accuracy, shouldRecenter) {
@@ -327,6 +325,78 @@
         setStatus(`Deleted saved trail "${trail.name}".`);
       }
 
+      function renameTrail(trailId, listItem) {
+        const existingForm = listItem.querySelector('.trail-rename-form');
+        if (existingForm) {
+          existingForm.querySelector('input').focus();
+          return;
+        }
+
+        const trails = getSavedTrails();
+        const trail = trails.find((entry) => entry.id === trailId);
+        if (!trail) {
+          setStatus('The selected saved trail could not be found.');
+          return;
+        }
+
+        const form = document.createElement('div');
+        form.className = 'trail-rename-form';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.maxLength = 80;
+        input.value = trail.name;
+        input.setAttribute('aria-label', 'New trail name');
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Save name';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'cancel-btn';
+        cancelBtn.textContent = 'Cancel';
+
+        form.append(input, confirmBtn, cancelBtn);
+        listItem.appendChild(form);
+
+        input.focus();
+        input.select();
+
+        const applyRename = () => {
+          const newName = input.value.trim();
+          if (!newName) {
+            input.focus();
+            return;
+          }
+
+          const updatedTrails = getSavedTrails();
+          const idx = updatedTrails.findIndex((entry) => entry.id === trailId);
+          if (idx === -1) {
+            setStatus('The selected saved trail could not be found.');
+            return;
+          }
+
+          updatedTrails[idx].name = newName;
+          if (!setSavedTrails(updatedTrails)) {
+            return;
+          }
+
+          renderSavedTrails();
+          setStatus(`Trail renamed to "${newName}".`);
+        };
+
+        confirmBtn.addEventListener('click', applyRename);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            applyRename();
+          }
+        });
+        cancelBtn.addEventListener('click', () => {
+          form.remove();
+        });
+      }
+
       function renderSavedTrails() {
         const trails = getSavedTrails();
         savedTrailsList.textContent = '';
@@ -336,20 +406,52 @@
           const listItem = document.createElement('li');
           const label = document.createElement('span');
           const loadButton = document.createElement('button');
+          const renameButton = document.createElement('button');
           const deleteButton = document.createElement('button');
 
           label.textContent = `${trail.name} — ${trail.points.length} point${trail.points.length === 1 ? '' : 's'} — saved ${formatTrailDate(trail.savedAt)}`;
+
           loadButton.type = 'button';
+          loadButton.className = 'load-btn';
           loadButton.textContent = 'Load';
           loadButton.addEventListener('click', () => loadTrail(trail.id));
+
+          renameButton.type = 'button';
+          renameButton.className = 'rename-btn';
+          renameButton.textContent = 'Rename trail';
+          renameButton.addEventListener('click', () => renameTrail(trail.id, listItem));
 
           deleteButton.type = 'button';
           deleteButton.textContent = 'Delete';
           deleteButton.addEventListener('click', () => deleteTrail(trail.id));
 
-          listItem.append(label, loadButton, deleteButton);
+          listItem.append(label, loadButton, renameButton, deleteButton);
           savedTrailsList.appendChild(listItem);
         });
+      }
+
+      function saveCurrentTrail() {
+        if (currentTrail.length === 0) {
+          return;
+        }
+
+        const trails = getSavedTrails();
+        const savedAt = Date.now();
+        const name = `Trail ${formatTrailName(savedAt)}`;
+
+        trails.unshift({
+          id: createTrailId(),
+          name,
+          savedAt,
+          points: currentTrail
+        });
+
+        if (!setSavedTrails(trails)) {
+          return;
+        }
+
+        renderSavedTrails();
+        setStatus(`Trail saved as "${name}" with ${currentTrail.length} point${currentTrail.length === 1 ? '' : 's'}. You can rename it below.`);
       }
 
       function stopTracking(shouldUpdateStatus = true) {
@@ -358,11 +460,13 @@
           watchId = null;
         }
 
-        updateButtons();
-
-        if (shouldUpdateStatus) {
-          setStatus(`Tracking stopped. Current trail has ${currentTrail.length} point${currentTrail.length === 1 ? '' : 's'}.`);
+        if (currentTrail.length > 0) {
+          saveCurrentTrail();
+        } else if (shouldUpdateStatus) {
+          setStatus('Tracking stopped. No points were recorded, trail was not saved.');
         }
+
+        updateButtons();
       }
 
       function handleTrackPoint(position) {
@@ -375,7 +479,6 @@
           accuracy: Math.round(accuracy),
           timestamp: position.timestamp
         });
-        currentTrailSaved = false;
 
         drawCurrentTrail();
         showLocation(latitude, longitude, accuracy, isFirstPoint);
@@ -412,21 +515,19 @@
           return;
         }
 
-        if (currentTrail.length > 0 && !currentTrailSaved) {
-          const shouldDiscardTrail = globalThis.confirm
-            ? globalThis.confirm('Start a new trail and discard the current unsaved trail?')
+        if (currentTrail.length > 0) {
+          const shouldDiscard = globalThis.confirm
+            ? globalThis.confirm('Start a new trail? The current trail will be discarded.')
             : false;
 
-          if (!shouldDiscardTrail) {
+          if (!shouldDiscard) {
             return;
           }
         }
 
         currentTrail = [];
-        currentTrailSaved = false;
         lastPosition = null;
         drawCurrentTrail();
-        trailNameInput.value = '';
         loadedTrailLine.setLatLngs([]);
         loadedTrailId = null;
         setStatus('Starting live tracking…');
@@ -441,33 +542,6 @@
 
       stopTrackingBtn.addEventListener('click', () => {
         stopTracking(true);
-      });
-
-      saveTrailBtn.addEventListener('click', () => {
-        if (currentTrail.length === 0) {
-          setStatus('Track something first before saving a trail.');
-          return;
-        }
-
-        const trails = getSavedTrails();
-        const savedAt = Date.now();
-        const name = trailNameInput.value.trim() || `Trail ${formatTrailName(savedAt)}`;
-
-        trails.unshift({
-          id: createTrailId(),
-          name,
-          savedAt,
-          points: currentTrail
-        });
-
-        if (!setSavedTrails(trails)) {
-          return;
-        }
-
-        currentTrailSaved = true;
-        renderSavedTrails();
-        updateButtons();
-        setStatus(`Saved "${name}" with ${currentTrail.length} point${currentTrail.length === 1 ? '' : 's'}.`);
       });
 
       renderSavedTrails();
