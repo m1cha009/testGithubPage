@@ -1,4 +1,4 @@
-# testGithubPage
+# 1
 
 Static GitHub Pages site that shows an OpenStreetMap map with Leaflet and can record, save, and reload movement trails in the browser.
 
