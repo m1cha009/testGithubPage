@@ -201,6 +201,7 @@
       }).addTo(map);
       let lastPosition = null;
       let currentTrail = [];
+      let currentTrailSaved = false;
       let watchId = null;
       let loadedTrailId = null;
 
@@ -233,7 +234,7 @@
         startTrackingBtn.disabled = isTracking || !geolocationSupported;
         stopTrackingBtn.disabled = !isTracking;
         recenterBtn.disabled = !lastPosition;
-        saveTrailBtn.disabled = currentTrail.length === 0;
+        saveTrailBtn.disabled = currentTrail.length === 0 || isTracking || currentTrailSaved;
       }
 
       function showLocation(latitude, longitude, accuracy, shouldRecenter) {
@@ -276,6 +277,18 @@
         return new Date(timestamp).toLocaleString();
       }
 
+      function formatTrailName(timestamp) {
+        return new Date(timestamp).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      }
+
+      function createTrailId() {
+        if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+          return globalThis.crypto.randomUUID();
+        }
+
+        return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+
       function loadTrail(trailId) {
         const trail = getSavedTrails().find((entry) => entry.id === trailId);
         if (!trail) {
@@ -286,7 +299,6 @@
         loadedTrailId = trail.id;
         loadedTrailLine.setLatLngs(trail.points.map((point) => [point.lat, point.lng]));
         fitTrail(trail.points);
-        lastPosition = trail.points.length ? [trail.points[trail.points.length - 1].lat, trail.points[trail.points.length - 1].lng] : lastPosition;
         updateButtons();
         setStatus(`Loaded saved trail "${trail.name}" with ${trail.points.length} point${trail.points.length === 1 ? '' : 's'}.`);
       }
@@ -354,7 +366,7 @@
 
       function handleTrackPoint(position) {
         const { latitude, longitude, accuracy } = position.coords;
-        const shouldRecenter = currentTrail.length === 0;
+        const isFirstPoint = currentTrail.length === 0;
 
         currentTrail.push({
           lat: latitude,
@@ -362,9 +374,10 @@
           accuracy: Math.round(accuracy),
           timestamp: position.timestamp
         });
+        currentTrailSaved = false;
 
         drawCurrentTrail();
-        showLocation(latitude, longitude, accuracy, shouldRecenter);
+        showLocation(latitude, longitude, accuracy, isFirstPoint);
         setStatus(`Tracking active. Recorded ${currentTrail.length} point${currentTrail.length === 1 ? '' : 's'}.`);
       }
 
@@ -375,25 +388,21 @@
       });
 
       function handleLocationError(error, stopAfterError) {
+        let message = 'Could not get your location. You can still use and explore the map manually.';
+
         if (error.code === error.PERMISSION_DENIED) {
-          setStatus('Location access was denied. You can still use and explore the map manually.');
-          if (stopAfterError) {
-            stopTracking(false);
-          }
-          return;
+          message = 'Location access was denied. You can still use and explore the map manually.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          message = 'Your location is currently unavailable. You can still use and explore the map manually.';
+        } else if (error.code === error.TIMEOUT) {
+          message = 'Location request timed out. You can still use and explore the map manually.';
         }
 
-        if (error.code === error.POSITION_UNAVAILABLE) {
-          setStatus('Your location is currently unavailable. You can still use and explore the map manually.');
-          return;
-        }
+        setStatus(message);
 
-        if (error.code === error.TIMEOUT) {
-          setStatus('Location request timed out. You can still use and explore the map manually.');
-          return;
+        if (stopAfterError) {
+          stopTracking(false);
         }
-
-        setStatus('Could not get your location. You can still use and explore the map manually.');
       }
 
       startTrackingBtn.addEventListener('click', () => {
@@ -402,13 +411,24 @@
           return;
         }
 
+        if (currentTrail.length > 0 && !currentTrailSaved) {
+          const shouldDiscardTrail = globalThis.confirm
+            ? globalThis.confirm('Start a new trail and discard the current unsaved trail?')
+            : false;
+
+          if (!shouldDiscardTrail) {
+            return;
+          }
+        }
+
         currentTrail = [];
+        currentTrailSaved = false;
+        lastPosition = null;
         drawCurrentTrail();
         trailNameInput.value = '';
         loadedTrailLine.setLatLngs([]);
         loadedTrailId = null;
         setStatus('Starting live tracking…');
-        updateButtons();
 
         watchId = navigator.geolocation.watchPosition(handleTrackPoint, (error) => handleLocationError(error, true), {
           enableHighAccuracy: true,
@@ -430,10 +450,10 @@
 
         const trails = getSavedTrails();
         const savedAt = Date.now();
-        const name = trailNameInput.value.trim() || `Trail ${formatTrailDate(savedAt)}`;
+        const name = trailNameInput.value.trim() || `Trail ${formatTrailName(savedAt)}`;
 
         trails.unshift({
-          id: String(savedAt),
+          id: createTrailId(),
           name,
           savedAt,
           points: currentTrail
@@ -443,7 +463,9 @@
           return;
         }
 
+        currentTrailSaved = true;
         renderSavedTrails();
+        updateButtons();
         setStatus(`Saved "${name}" with ${currentTrail.length} point${currentTrail.length === 1 ? '' : 's'}.`);
       });
 

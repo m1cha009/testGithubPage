@@ -26,7 +26,7 @@ Your site will be available at:
 - Click **Start tracking** to request geolocation permission and begin recording points.
 - While tracking is active, the page updates the current marker and draws the live trail on the map.
 - Click **Stop tracking** to stop geolocation watching.
-- Click **Save current trail** to store the recorded points in browser `localStorage`.
+- After stopping, click **Save current trail** to store the recorded points in browser `localStorage`.
 - Saved trails can be **loaded** or **deleted** later from the same browser/device.
 - If access is denied or fails, a clear message is shown and the map remains usable.
 - Geolocation generally works best over HTTPS (GitHub Pages) or localhost.
