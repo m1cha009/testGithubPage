@@ -45,6 +45,22 @@
       #status {
         margin-top: 0.75rem;
       }
+
+      #recenterBtn {
+        margin-top: 0.75rem;
+        padding: 0.5rem 1.25rem;
+        font-size: 1rem;
+        border: none;
+        border-radius: 6px;
+        background: #3b82f6;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      #recenterBtn:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
@@ -56,6 +72,7 @@
       </p>
 
       <div id="map" role="region" aria-label="Map"></div>
+      <button id="recenterBtn" disabled aria-label="Recenter map to current location">Recenter map</button>
       <p id="status" aria-live="polite">Requesting your location…</p>
     </div>
 
@@ -66,6 +83,7 @@
     ></script>
     <script>
       const statusEl = document.getElementById('status');
+      const recenterBtn = document.getElementById('recenterBtn');
       const map = L.map('map').setView([20, 0], 2);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -74,25 +92,34 @@
       }).addTo(map);
 
       let currentLocationMarker;
+      let lastPosition = null;
 
       function setStatus(message) {
         statusEl.textContent = message;
       }
 
       function showLocation(latitude, longitude, accuracy) {
-        map.setView([latitude, longitude], 14);
+        lastPosition = [latitude, longitude];
+        recenterBtn.disabled = false;
+        map.setView(lastPosition, 14);
 
         if (currentLocationMarker) {
           currentLocationMarker.remove();
         }
 
-        currentLocationMarker = L.marker([latitude, longitude])
+        currentLocationMarker = L.marker(lastPosition)
           .addTo(map)
           .bindPopup(`You are here (accuracy: ±${Math.round(accuracy)}m).`)
           .openPopup();
 
         setStatus('Location found. The marker shows your current position.');
       }
+
+      recenterBtn.addEventListener('click', () => {
+        if (lastPosition) {
+          map.setView(lastPosition, 14);
+        }
+      });
 
       function handleLocationError(error) {
         if (error.code === error.PERMISSION_DENIED) {
