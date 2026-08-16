@@ -1,6 +1,6 @@
 # testGithubPage
 
-Static GitHub Pages site that shows an OpenStreetMap map with Leaflet and (when allowed) the visitor's current location.
+Static GitHub Pages site that shows an OpenStreetMap map with Leaflet and can record, save, and reload movement trails in the browser.
 
 ## Run locally
 
@@ -23,7 +23,10 @@ Your site will be available at:
 ## Behavior
 
 - The map loads immediately using OpenStreetMap tiles.
-- On page load, the browser requests geolocation permission.
-- If access is granted, the map centers on the user and places a marker.
+- Click **Start tracking** to request geolocation permission and begin recording points.
+- While tracking is active, the page updates the current marker and draws the live trail on the map.
+- Click **Stop tracking** to stop geolocation watching.
+- After stopping, click **Save current trail** to store the recorded points in browser `localStorage`.
+- Saved trails can be **loaded** or **deleted** later from the same browser/device.
 - If access is denied or fails, a clear message is shown and the map remains usable.
 - Geolocation generally works best over HTTPS (GitHub Pages) or localhost.
